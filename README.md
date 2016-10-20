@@ -9,3 +9,12 @@ The scenario is the following:
 the result from the client to an external system by which request the process was started in the first place
 - the child creates the result but has to do more things of which the parent is not really interested. 
 - after the parent sent the response it waits for the child to complete before it will complete itself.
+
+Parent Process
+![Parent Process][Parent]
+
+Child process
+![Child Process][Child]
+
+[Parent]: https://github.com/thuri/CallActivitTests/blob/master/CallActivitiTests/pictures/parent.PNG
+[Child]: https://github.com/thuri/CallActivitTests/blob/master/CallActivitiTests/pictures/Child.PNG
