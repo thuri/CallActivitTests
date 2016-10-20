@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/test">
+  <message id="RespondToCaller" name="RespondToCaller"></message>
   <process id="Parent" name="Parent" isExecutable="true">
     <startEvent id="startevent1" name="Start"></startEvent>
     <callActivity id="call_child" name="Call Child" calledElement="Child">
@@ -8,38 +9,42 @@
       </extensionElements>
     </callActivity>
     <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="call_child"></sequenceFlow>
-    <scriptTask id="scripttask1" name="Script Task" scriptFormat="javascript" activiti:autoStoreVariables="false">
-      <script>var test="Test Variable";</script>
-    </scriptTask>
-    <sequenceFlow id="flow2" sourceRef="call_child" targetRef="scripttask1"></sequenceFlow>
     <endEvent id="endevent1" name="End"></endEvent>
-    <sequenceFlow id="flow3" sourceRef="scripttask1" targetRef="endevent1"></sequenceFlow>
+    <serviceTask id="RespondMQ" name="MQ Antwort" activiti:delegateExpression="${camel}"></serviceTask>
+    <sequenceFlow id="flow5" sourceRef="RespondMQ" targetRef="endevent1"></sequenceFlow>
+    <boundaryEvent id="boundarymessage1" name="Message" attachedToRef="call_child" cancelActivity="false">
+      <messageEventDefinition messageRef="RespondToCaller"></messageEventDefinition>
+    </boundaryEvent>
+    <sequenceFlow id="flow6" sourceRef="boundarymessage1" targetRef="RespondMQ"></sequenceFlow>
   </process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_Parent">
     <bpmndi:BPMNPlane bpmnElement="Parent" id="BPMNPlane_Parent">
       <bpmndi:BPMNShape bpmnElement="startevent1" id="BPMNShape_startevent1">
-        <omgdc:Bounds height="35.0" width="35.0" x="250.0" y="320.0"></omgdc:Bounds>
+        <omgdc:Bounds height="35.0" width="35.0" x="180.0" y="320.0"></omgdc:Bounds>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape bpmnElement="call_child" id="BPMNShape_call_child">
-        <omgdc:Bounds height="55.0" width="105.0" x="330.0" y="310.0"></omgdc:Bounds>
+        <omgdc:Bounds height="55.0" width="105.0" x="260.0" y="310.0"></omgdc:Bounds>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape bpmnElement="scripttask1" id="BPMNShape_scripttask1">
-        <omgdc:Bounds height="55.0" width="105.0" x="480.0" y="310.0"></omgdc:Bounds>
+      <bpmndi:BPMNShape bpmnElement="boundarymessage1" id="BPMNShape_boundarymessage1">
+        <omgdc:Bounds height="30.0" width="30.0" x="350.0" y="323.0"></omgdc:Bounds>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape bpmnElement="endevent1" id="BPMNShape_endevent1">
-        <omgdc:Bounds height="35.0" width="35.0" x="630.0" y="320.0"></omgdc:Bounds>
+        <omgdc:Bounds height="35.0" width="35.0" x="660.0" y="320.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="RespondMQ" id="BPMNShape_RespondMQ">
+        <omgdc:Bounds height="55.0" width="105.0" x="470.0" y="310.0"></omgdc:Bounds>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
-        <omgdi:waypoint x="285.0" y="337.0"></omgdi:waypoint>
-        <omgdi:waypoint x="330.0" y="337.0"></omgdi:waypoint>
+        <omgdi:waypoint x="215.0" y="337.0"></omgdi:waypoint>
+        <omgdi:waypoint x="260.0" y="337.0"></omgdi:waypoint>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
-        <omgdi:waypoint x="435.0" y="337.0"></omgdi:waypoint>
-        <omgdi:waypoint x="480.0" y="337.0"></omgdi:waypoint>
+      <bpmndi:BPMNEdge bpmnElement="flow5" id="BPMNEdge_flow5">
+        <omgdi:waypoint x="575.0" y="337.0"></omgdi:waypoint>
+        <omgdi:waypoint x="660.0" y="337.0"></omgdi:waypoint>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
-        <omgdi:waypoint x="585.0" y="337.0"></omgdi:waypoint>
-        <omgdi:waypoint x="630.0" y="337.0"></omgdi:waypoint>
+      <bpmndi:BPMNEdge bpmnElement="flow6" id="BPMNEdge_flow6">
+        <omgdi:waypoint x="380.0" y="338.0"></omgdi:waypoint>
+        <omgdi:waypoint x="470.0" y="337.0"></omgdi:waypoint>
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

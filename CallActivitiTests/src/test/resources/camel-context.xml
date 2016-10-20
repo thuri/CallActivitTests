@@ -4,21 +4,10 @@ http://www.springframework.org/schema/beans/spring-beans.xsd
 http://camel.apache.org/schema/spring
 http://camel.apache.org/schema/spring/camel-spring.xsd">
 
-  <camelContext id="camelContext" xmlns="http://camel.apache.org/schema/spring">
-    <packageScan>
-      <package>de.hmag</package>
-    </packageScan>
-  </camelContext>
-  
+  <camelContext id="camelContext" xmlns="http://camel.apache.org/schema/spring" /> 
+   
    <bean id="camel" class="org.activiti.camel.impl.CamelBehaviorCamelBodyImpl">
-<!--     <constructor-arg index="0"> -->
-<!--       <list> -->
-<!--         <bean class="org.activiti.camel.SimpleContextProvider"> -->
-<!--           <constructor-arg index="0" value="Child" /> -->
-<!--           <constructor-arg index="1" ref="camelProcess" /> -->
-<!--         </bean> -->
-<!--       </list> -->
-<!--     </constructor-arg> -->
+
   </bean>
   
 </beans>

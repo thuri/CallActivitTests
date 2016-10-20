@@ -1,15 +1,17 @@
 package de.hmag.callactivity;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
+
+import java.util.List;
+import java.util.UUID;
 
 import org.activiti.camel.ActivitiProducer;
 import org.activiti.engine.HistoryService;
 import org.activiti.engine.RepositoryService;
 import org.activiti.engine.RuntimeService;
-import org.activiti.engine.history.HistoricProcessInstance;
-import org.activiti.engine.history.HistoricProcessInstanceQuery;
-import org.activiti.engine.history.HistoricVariableInstance;
+import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
 import org.activiti.engine.repository.DeploymentBuilder;
+import org.activiti.engine.runtime.Execution;
 import org.activiti.engine.runtime.ExecutionQuery;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.apache.camel.CamelContext;
@@ -48,12 +50,22 @@ public class CallActivityTest {
   @EndpointInject(uri="mock:fromChild")
   private MockEndpoint fromChildMock;
   
+  @EndpointInject(uri="mock:parentResponseMock")
+  private MockEndpoint parentResponseMock;
+  
   @Produce(uri="activiti:Child:Receive_from_Camel")
-  private ProducerTemplate receiveTaskTemplate;
+  private ProducerTemplate receiveFromCamelProducer;
+  
+  @Produce(uri="activiti:Child:Receive_From_Camel_Before_End")
+  private ProducerTemplate receiveFromCamelBeforeEndProducer;
+
   
   @Test
   public void test() throws Exception {
     
+    /*
+     * Arrange
+     */
     DeploymentBuilder deployment = repoService.createDeployment();
     deployment.addClasspathResource("diagrams/Child.bpmn");
     deployment.addClasspathResource("diagrams/Parent.bpmn");
@@ -62,63 +74,85 @@ public class CallActivityTest {
     camelContext.addRoutes(new RouteBuilder() {
       @Override
       public void configure() throws Exception {
-        from("seda:fromChild")
-          .log("Got Message From seda Queue")
-          .to("log:logger?showAll=true")
+        
+        from("activiti:Child:call_Camel")
           .to(fromChildMock);
+        
+        from("activiti:Parent:RespondMQ")
+          .to(parentResponseMock);
       }
     });
     
-    ProcessInstance procInst = runtimeService.startProcessInstanceByKey("Parent");
-    
-    System.out.println("Started process with id:"+procInst.getId());
-    
+    //Create a unique string for the body value. This is to ensure that this body is passed from the child
+    //to the parent and from the parent to the response
+    String bodyValue = UUID.randomUUID().toString();
+    //setup mock expectations
+    parentResponseMock.expectedBodiesReceived(bodyValue);
     fromChildMock.expectedMessageCount(1);
+    
+    /*
+     * Act & Assert
+     */
+    
+    //start the Parent process which will start a process instance of the child process
+    ProcessInstance procInst = runtimeService.startProcessInstanceByKey("Parent");
+    assertNotNull(procInst);
+    
+    //the child process should sent a message through camel to the fromChildMock.
+    //assert that this message has been received
     fromChildMock.assertIsSatisfied();
     
+    //both instances will now be persisted and wait for a message to the first receive task in the child
+    
+    //define queries to ask for the executions of both processes
     ExecutionQuery parentExecQuery = runtimeService.createExecutionQuery().processDefinitionKey("Parent");
     ExecutionQuery childExecQuery = runtimeService.createExecutionQuery().processDefinitionKey("Child");
     
+    //because the executions are waiting for a message in order to proceed there must be executions for both processes
     assertEquals(2, parentExecQuery.list().size());
     assertEquals(1, childExecQuery.list().size());
     
-    Object procIdPropertyValue = fromChildMock.getExchanges().get(0).getProperty(ActivitiProducer.PROCESS_ID_PROPERTY);
-    receiveTaskTemplate.sendBodyAndProperty("Body", ActivitiProducer.PROCESS_ID_PROPERTY,procIdPropertyValue);
+    //get the process instance id of the child which must have been sent to the fromChildMock as Exchange Property
+    Object childProcId = fromChildMock.getExchanges().get(0).getProperty(ActivitiProducer.PROCESS_ID_PROPERTY);
+    //now sent the message to the child in order to proceed in the process
+    receiveFromCamelProducer.sendBodyAndProperty(bodyValue, ActivitiProducer.PROCESS_ID_PROPERTY,childProcId);
+    
+    //wait some time for the process to proceed
+    Thread.sleep(1000);
+    
+    /*
+     * Here we check that the process instances are still running 
+     * (because they are waiting for the last receive task in the child)
+     * but the response has been sent by the parent (parentResponseMock has received a message)
+     */
+    
+    //first check that there are still executions left in the database
+    assertEquals(2, parentExecQuery.list().size());
+    assertEquals(1, childExecQuery.list().size());
+    //now check that the parentResponseMock has received a message (expectation is set above)
+    parentResponseMock.assertIsSatisfied();
+    
+    //now sent a message to the receive task of the child to complete both processes
+    receiveFromCamelBeforeEndProducer.sendBodyAndProperty("go to sleep", ActivitiProducer.PROCESS_ID_PROPERTY, childProcId);
     
     Thread.sleep(1000);
     
+    //Check that there are no executions left in the database
     assertEquals(0, parentExecQuery.list().size());
     assertEquals(0, childExecQuery.list().size());
     
-    HistoricProcessInstanceQuery parentInstHistoryQuery = historyService.createHistoricProcessInstanceQuery().processDefinitionKey("Parent");
-    HistoricProcessInstanceQuery childInstHistoryQuery = historyService.createHistoricProcessInstanceQuery().processDefinitionKey("Child");
-    
-    System.out.println("Parent history instances");
-    outputHistory(parentInstHistoryQuery);
-    System.out.println("Child history instances");
-    outputHistory(childInstHistoryQuery);
-    
-    HistoricProcessInstance parentHisInst = parentInstHistoryQuery.singleResult();
-    HistoricProcessInstance childHisInst = childInstHistoryQuery.singleResult();
-    
-    HistoricVariableInstance parentVariable = historyService.createHistoricVariableInstanceQuery().processInstanceId(parentHisInst.getId()).singleResult();
-    HistoricVariableInstance childVariable  = historyService.createHistoricVariableInstanceQuery().processInstanceId(childHisInst.getId()).singleResult();
-    
-    assertEquals("childCamelBody",parentVariable.getVariableName());
-    assertEquals("camelBody",     childVariable.getVariableName());
-    
-    assertEquals(childVariable.getValue(), parentVariable.getValue());
-    
   }
 
-  private void outputHistory(HistoricProcessInstanceQuery histInstQuery) {
-    for (HistoricProcessInstance hisProcInst : histInstQuery.list()) {
-      System.out.println(hisProcInst.getId());
-      System.out.println("\this variables of procInst");
-      for(HistoricVariableInstance varInst : historyService.createHistoricVariableInstanceQuery().processInstanceId(hisProcInst.getId()).list()) {
-        System.out.println("\t"+varInst.getVariableName()+"="+varInst.getValue());
-      }
-    };
-  }
+//  private void outputExecutions(List<Execution> execList) {
+//    
+//    for(Execution exec : execList) {
+//      System.out.println(exec.getId());
+//      System.out.println("\tparent: "+exec.getParentId());
+//      System.out.println("\tsuper:"+((ExecutionEntity)exec).getSuperExecutionId());
+//      System.out.println("\tactivity:"+exec.getActivityId());
+//      System.out.println("\tvariables:"+runtimeService.getVariables(exec.getId()));
+//      
+//    }
+//  }
 
 }
